@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>System 6 Animator</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- System 6 Theme Styles --- */
+        :root {
+            --bg-pattern: repeating-linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc),
+                          repeating-linear-gradient(45deg, #ccc 25%, #f0f0f0 25%, #f0f0f0 75%, #ccc 75%, #ccc);
+            --sys-black: #000;
+            --sys-white: #fff;
+            --sys-grey: #aaa; /* Onion skin color */
+            --shadow: 2px 2px 0px var(--sys-black);
+        }
+
+        body {
+            font-family: 'VT323', monospace;
+            background-color: #f0f0f0;
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                              linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 4px 4px;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--sys-black);
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* The Main Window */
+        .window {
+            background: var(--sys-white);
+            border: 2px solid var(--sys-black);
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Title Bar */
+        .title-bar {
+            background: var(--sys-black);
+            color: var(--sys-white);
+            padding: 4px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--sys-black);
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+        }
+        
+        .title-lines {
+            flex-grow: 1;
+            height: 12px;
+            margin: 0 10px;
+            background: repeating-linear-gradient(
+                to bottom,
+                var(--sys-white),
+                var(--sys-white) 1px,
+                var(--sys-black) 1px,
+                var(--sys-black) 2px
+            );
+        }
+
+        .close-box {
+            width: 12px;
+            height: 12px;
+            background: var(--sys-white);
+            border: 1px solid var(--sys-white);
+            box-shadow: inset 1px 1px 0 #000;
+        }
+
+        /* Main Content Area */
+        .content {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed var(--sys-black);
+        }
+
+        .btn {
+            background: var(--sys-white);
+            border: 2px solid var(--sys-black);
+            padding: 5px 10px;
+            font-family: 'VT323', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--sys-black);
+            transition: transform 0.1s;
+            text-transform: uppercase;
+        }
+
+        .btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+            background: var(--sys-black);
+            color: var(--sys-white);
+        }
+
+        .btn.active {
+            background: var(--sys-black);
+            color: var(--sys-white);
+            box-shadow: inset 2px 2px 0px rgba(255,255,255,0.2);
+        }
+
+        .control-group {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            border: 1px solid var(--sys-black);
+            padding: 3px;
+        }
+
+        /* Canvas Area */
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #e0e0e0;
+            padding: 10px;
+            border: 1px inset var(--sys-black);
+            position: relative;
+        }
+
+        canvas {
+            background: var(--sys-white);
+            border: 2px solid var(--sys-black);
+            cursor: crosshair;
+            image-rendering: pixelated;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* Film Strip (Timeline) */
+        .film-strip {
+            display: flex;
+            gap: 5px;
+            overflow-x: auto;
+            padding: 5px 0;
+            height: 60px;
+            border-top: 2px solid var(--sys-black);
+            background: #ddd;
+            scrollbar-width: thin;
+        }
+        
+        .film-frame {
+            min-width: 50px;
+            width: 50px;
+            height: 50px;
+            background: var(--sys-white);
+            border: 2px solid var(--sys-black);
+            position: relative;
+            cursor: pointer;
+            image-rendering: pixelated;
+        }
+
+        .film-frame.selected {
+            border: 3px solid red; /* Highlight current frame strongly */
+            box-shadow: 0 0 5px red;
+        }
+
+        .film-frame canvas {
+            width: 100%;
+            height: 100%;
+            border: none;
+            box-shadow: none;
+            pointer-events: none;
+        }
+
+        .frame-number {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: var(--sys-black);
+            color: var(--sys-white);
+            font-size: 10px;
+            padding: 1px 3px;
+        }
+
+        /* Playback Controls */
+        .playback-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 5px;
+        }
+        
+        label {
+            font-size: 1.1rem;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            background: var(--sys-black);
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: var(--sys-black);
+        }
+
+        /* Responsive */
+        @media (max-width: 500px) {
+            body { padding: 5px; }
+            .window { border-width: 2px; }
+            .btn { font-size: 0.9rem; padding: 4px 6px; }
+            .film-strip { height: 45px; }
+            .film-frame { min-width: 35px; width: 35px; height: 35px; }
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="window">
+    <div class="title-bar">
+        <div class="close-box"></div>
+        <div class="title-lines"></div>
+        <span>PIXEL.ANIM</span>
+        <div class="title-lines"></div>
+    </div>
+
+    <div class="content">
+        <!-- Tools -->
+        <div class="toolbar">
+            <div class="control-group">
+                <button class="btn active" id="tool-pen" onclick="setTool('pen')">Pen</button>
+                <button class="btn" id="tool-eraser" onclick="setTool('eraser')">Eraser</button>
+            </div>
+            <div class="control-group">
+                <button class="btn" onclick="clearFrame()">Clear Cel</button>
+                <button class="btn" onclick="startOver()" style="font-weight:bold;">Start Over</button>
+                <select id="grid-size" class="btn" onchange="changeGridSize()">
+                    <option value="8">8x8</option>
+                    <option value="16">16x16</option>
+                    <option value="32">32x32</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main Canvas -->
+        <div class="canvas-container">
+            <canvas id="editorCanvas" width="320" height="320"></canvas>
+        </div>
+
+        <!-- Animation Controls -->
+        <div class="toolbar" style="border-bottom: none; border-top: 1px dashed var(--sys-black); padding-top: 10px;">
+            <button class="btn" id="save-cel-btn" onclick="saveCelAndNext()" style="flex-grow: 1; font-weight: bold;">+ Save Cel</button>
+            <button class="btn" onclick="deleteFrame()" style="color:red">X</button>
+        </div>
+
+        <!-- Playback -->
+        <div class="playback-controls">
+            <button class="btn" id="play-btn" onclick="togglePlay()">&#9658; PLAY</button>
+            <div style="display:flex; align-items:center; gap:5px;">
+                <label>Speed:</label>
+                <input type="range" id="speed-range" min="1" max="20" value="8" oninput="updateSpeed()">
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="film-strip" id="film-strip">
+            <!-- Thumbnails go here -->
+        </div>
+        <div style="text-align:center; font-size: 0.8rem; margin-top: 2px;">
+            Frame: <span id="frame-indicator">1/1</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Configuration ---
+    let gridSize = 8;
+    const canvasSize = 320; // Display size in pixels
+    let pixelSize = canvasSize / gridSize;
+    
+    // --- State ---
+    let frames = []; // Array of 2D arrays (0=empty, 1=black)
+    let currentFrameIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let fps = 8;
+    let tool = 'pen'; // 'pen' or 'eraser'
+    let isDrawing = false;
+    let showOnionSkin = true;
+
+    // --- DOM Elements ---
+    const canvas = document.getElementById('editorCanvas');
+    const ctx = canvas.getContext('2d');
+    const filmStrip = document.getElementById('film-strip');
+    const frameIndicator = document.getElementById('frame-indicator');
+    const playBtn = document.getElementById('play-btn');
+
+    // --- Initialization ---
+    function init() {
+        // Initialize with one empty frame
+        addNewFrame();
+        render();
+        updateUI();
+    }
+
+    // --- Grid Logic ---
+
+    function createEmptyGrid(size) {
+        let grid = [];
+        for (let y = 0; y < size; y++) {
+            let row = [];
+            for (let x = 0; x < size; x++) {
+                row.push(0);
+            }
+            grid.push(row);
+        }
+        return grid;
+    }
+
+    function startOver() {
+        // Check if there is anything to lose
+        if (frames.length > 1 || hasContent(frames[0])) {
+            if (!confirm("Start over? This will delete your entire animation.")) return;
+        }
+
+        // Stop playback if running
+        if (isPlaying) stopAnimation();
+
+        // Reset state
+        frames = [];
+        currentFrameIndex = 0;
+        
+        // Clear thumbnails DOM
+        filmStrip.innerHTML = '';
+
+        // Ensure grid settings match current dropdown (just in case)
+        const select = document.getElementById('grid-size');
+        gridSize = parseInt(select.value);
+        pixelSize = canvasSize / gridSize;
+
+        // Initialize fresh
+        addNewFrame();
+        render();
+        updateUI();
+    }
+
+    function changeGridSize() {
+        const select = document.getElementById('grid-size');
+        const newSize = parseInt(select.value);
+        
+        if (frames.length > 1 || hasContent(frames[0])) {
+            if(!confirm("Changing grid size will reset your animation. Continue?")) {
+                select.value = gridSize;
+                return;
+            }
+        }
+        
+        gridSize = newSize;
+        pixelSize = canvasSize / gridSize;
+        
+        // Reset everything manually instead of calling startOver to avoid double confirm
+        frames = [];
+        currentFrameIndex = 0;
+        filmStrip.innerHTML = '';
+        
+        addNewFrame();
+        render();
+        updateUI();
+    }
+
+    function hasContent(grid) {
+        return grid.some(row => row.some(cell => cell === 1));
+    }
+
+    // --- Frame Management ---
+
+    function addNewFrame(copyPrevious = false) {
+        let newGrid;
+        if (copyPrevious && frames.length > 0) {
+            // Deep copy the previous frame
+            newGrid = JSON.parse(JSON.stringify(frames[frames.length - 1]));
+        } else {
+            newGrid = createEmptyGrid(gridSize);
+        }
+        frames.push(newGrid);
+        currentFrameIndex = frames.length - 1;
+        addThumbnail(currentFrameIndex);
+        scrollToEnd();
+    }
+
+    function saveCelAndNext() {
+        // If we are editing a frame in the middle, just move to next if it exists, otherwise create new
+        if (currentFrameIndex < frames.length - 1) {
+            currentFrameIndex++;
+        } else {
+            // Create a completely new empty frame
+            // The user requested: "pixels turn grey... user can select cels for NEXT frame"
+            // This implies a blank slate with onion skin.
+            addNewFrame(false);
+        }
+        render();
+        updateUI();
+    }
+
+    function deleteFrame() {
+        if (frames.length <= 1) {
+            clearFrame();
+            return;
+        }
+        
+        if (confirm("Delete this frame?")) {
+            frames.splice(currentFrameIndex, 1);
+            // Remove thumbnail
+            const thumb = filmStrip.children[currentFrameIndex];
+            if(thumb) filmStrip.removeChild(thumb);
+            
+            // Adjust index
+            if (currentFrameIndex >= frames.length) {
+                currentFrameIndex = frames.length - 1;
+            }
+            
+            // Re-render all thumbnails because indices shifted
+            refreshThumbnails();
+            render();
+            updateUI();
+        }
+    }
+
+    function clearFrame() {
+        frames[currentFrameIndex] = createEmptyGrid(gridSize);
+        render();
+        updateThumbnail(currentFrameIndex);
+    }
+
+    function selectFrame(index) {
+        if (isPlaying) stopAnimation();
+        currentFrameIndex = index;
+        render();
+        updateUI();
+    }
+
+    // --- Drawing Engine ---
+
+    function drawGridLines() {
+        ctx.strokeStyle = '#e0e0e0'; // Very faint grid lines
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= gridSize; i++) {
+            ctx.moveTo(i * pixelSize, 0);
+            ctx.lineTo(i * pixelSize, canvasSize);
+            ctx.moveTo(0, i * pixelSize);
+            ctx.lineTo(canvasSize, i * pixelSize);
+        }
+        ctx.stroke();
+    }
+
+    function drawPixel(x, y, color) {
+        ctx.fillStyle = color;
+        // Draw slightly smaller than grid for aesthetic separation
+        const gap = 0; 
+        ctx.fillRect(x * pixelSize + gap, y * pixelSize + gap, pixelSize - gap*2, pixelSize - gap*2);
+    }
+
+    function render() {
+        // Clear Canvas
+        ctx.clearRect(0, 0, canvasSize, canvasSize);
+        
+        // 1. Draw Grid Lines
+        drawGridLines();
+
+        // 2. Onion Skin (Previous Frame)
+        // Only show onion skin if not playing and not on first frame
+        if (!isPlaying && showOnionSkin && currentFrameIndex > 0) {
+            const prevFrame = frames[currentFrameIndex - 1];
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    if (prevFrame[y][x] === 1) {
+                        drawPixel(x, y, '#ccc'); // Grey for onion skin
+                    }
+                }
+            }
+        }
+
+        // 3. Current Frame
+        const currentGrid = frames[currentFrameIndex];
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (currentGrid[y][x] === 1) {
+                    drawPixel(x, y, '#000'); // Black for active pixels
+                }
+            }
+        }
+
+        updateThumbnail(currentFrameIndex);
+    }
+
+    // --- Interaction ---
+
+    function getGridCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        // Handle both mouse and touch events
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const x = Math.floor((clientX - rect.left) / (rect.width / gridSize));
+        const y = Math.floor((clientY - rect.top) / (rect.height / gridSize));
+        return { x, y };
+    }
+
+    function handlePaint(e) {
+        if (isPlaying) return; // Can't draw while playing
+        
+        const { x, y } = getGridCoords(e);
+        
+        // Bounds check
+        if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+            const val = tool === 'pen' ? 1 : 0;
+            // Only update if changed
+            if (frames[currentFrameIndex][y][x] !== val) {
+                frames[currentFrameIndex][y][x] = val;
+                render();
+            }
+        }
+        e.preventDefault(); // Prevent scrolling on touch
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        handlePaint(e);
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (isDrawing) handlePaint(e);
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDrawing = false;
+    });
+
+    // Touch support
+    canvas.addEventListener('touchstart', (e) => {
+        isDrawing = true;
+        handlePaint(e);
+    }, {passive: false});
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (isDrawing) handlePaint(e);
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', () => {
+        isDrawing = false;
+    });
+
+    // --- Toolbar ---
+
+    function setTool(t) {
+        tool = t;
+        document.getElementById('tool-pen').classList.toggle('active', t === 'pen');
+        document.getElementById('tool-eraser').classList.toggle('active', t === 'eraser');
+    }
+
+    // --- Timeline UI ---
+
+    function addThumbnail(index) {
+        const thumb = document.createElement('div');
+        thumb.className = 'film-frame';
+        thumb.onclick = () => selectFrame(index);
+        
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = gridSize;
+        thumbCanvas.height = gridSize;
+        thumb.appendChild(thumbCanvas);
+        
+        const num = document.createElement('div');
+        num.className = 'frame-number';
+        num.innerText = index + 1;
+        thumb.appendChild(num);
+
+        filmStrip.appendChild(thumb);
+    }
+
+    function updateThumbnail(index) {
+        if (index < 0 || index >= filmStrip.children.length) return;
+        
+        const thumb = filmStrip.children[index];
+        const thumbCanvas = thumb.querySelector('canvas');
+        const tCtx = thumbCanvas.getContext('2d');
+        const grid = frames[index];
+        
+        // Clear transparent
+        tCtx.clearRect(0, 0, gridSize, gridSize);
+        
+        // Draw miniature
+        tCtx.fillStyle = '#000';
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (grid[y][x] === 1) {
+                    tCtx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+    }
+
+    function refreshThumbnails() {
+        filmStrip.innerHTML = '';
+        frames.forEach((_, idx) => addThumbnail(idx));
+        // Update content of all
+        frames.forEach((_, idx) => updateThumbnail(idx));
+    }
+
+    function updateUI() {
+        frameIndicator.innerText = `${currentFrameIndex + 1}/${frames.length}`;
+        
+        // Highlight active thumbnail
+        Array.from(filmStrip.children).forEach((child, idx) => {
+            if (idx === currentFrameIndex) child.classList.add('selected');
+            else child.classList.remove('selected');
+        });
+
+        // Change Save Button text based on context
+        const saveBtn = document.getElementById('save-cel-btn');
+        if (currentFrameIndex === frames.length - 1) {
+            saveBtn.innerText = "+ Save Cel";
+        } else {
+            saveBtn.innerText = "Next Frame >";
+        }
+    }
+
+    function scrollToEnd() {
+        setTimeout(() => {
+            filmStrip.scrollLeft = filmStrip.scrollWidth;
+        }, 50);
+    }
+
+    // --- Playback ---
+
+    function togglePlay() {
+        if (isPlaying) {
+            stopAnimation();
+        } else {
+            startAnimation();
+        }
+    }
+
+    function startAnimation() {
+        if (frames.length < 1) return;
+        isPlaying = true;
+        playBtn.innerHTML = '&#9632; STOP'; // Square stop symbol
+        document.getElementById('save-cel-btn').disabled = true;
+        
+        // Disable editing inputs
+        canvas.style.cursor = 'default';
+
+        playInterval = setInterval(() => {
+            currentFrameIndex = (currentFrameIndex + 1) % frames.length;
+            render();
+            // Update UI selection for visual tracking
+            updateUI(); 
+        }, 1000 / fps);
+    }
+
+    function stopAnimation() {
+        isPlaying = false;
+        clearInterval(playInterval);
+        playBtn.innerHTML = '&#9658; PLAY';
+        document.getElementById('save-cel-btn').disabled = false;
+        canvas.style.cursor = 'crosshair';
+        render(); // Re-render to show onion skin if applicable
+    }
+
+    function updateSpeed() {
+        const slider = document.getElementById('speed-range');
+        fps = parseInt(slider.value);
+        if (isPlaying) {
+            stopAnimation();
+            startAnimation();
+        }
+    }
+
+    // --- Start ---
+    init();
+
+</script>
+
+</body>
+</html>
