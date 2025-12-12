@@ -279,8 +279,9 @@
 
         <!-- Animation Controls -->
         <div class="toolbar" style="border-bottom: none; border-top: 1px dashed var(--sys-black); padding-top: 10px;">
-            <button class="btn" id="save-cel-btn" onclick="saveCelAndNext()" style="flex-grow: 1; font-weight: bold;">+ Save Cel</button>
-            <button class="btn" onclick="deleteFrame()" style="color:red">X</button>
+            <button class="btn" id="save-cel-btn" onclick="saveCelAndNext()" style="flex-grow: 2; font-weight: bold;">+ Save Cel</button>
+            <button class="btn" onclick="duplicateFrame()" title="Duplicate Current Frame" style="flex-grow: 1;">Dup</button>
+            <button class="btn" onclick="deleteFrame()" style="color:red; font-weight:bold;">X</button>
         </div>
 
         <!-- Playback -->
@@ -414,8 +415,33 @@
         }
         frames.push(newGrid);
         currentFrameIndex = frames.length - 1;
+        // Optimization: instead of full refresh, just append one
         addThumbnail(currentFrameIndex);
         scrollToEnd();
+    }
+
+    function duplicateFrame() {
+        if (frames.length === 0) return;
+
+        // Deep copy the current frame
+        const newGrid = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
+        
+        // Insert it into the array immediately after the current index
+        frames.splice(currentFrameIndex + 1, 0, newGrid);
+        
+        // Move selection to the new duplicate
+        currentFrameIndex++;
+        
+        // We need to refresh all thumbnails because the indices of subsequent frames have shifted
+        refreshThumbnails();
+        render();
+        updateUI();
+        
+        // Scroll to make sure the new frame is visible
+        setTimeout(() => {
+            const thumb = filmStrip.children[currentFrameIndex];
+            if (thumb) thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }, 50);
     }
 
     function saveCelAndNext() {
