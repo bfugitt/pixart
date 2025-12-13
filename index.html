@@ -8,6 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    
+    <!-- GIF Encoder Library -->
+    <script src="https://unpkg.com/gifenc@1.0.3/dist/gifenc.js"></script>
 
     <style>
         /* --- System 6 Theme Styles --- */
@@ -113,6 +116,10 @@
             box-shadow: 2px 2px 0px var(--sys-black);
             transition: transform 0.1s;
             text-transform: uppercase;
+            text-decoration: none;
+            color: var(--sys-black);
+            display: inline-block;
+            text-align: center;
         }
 
         .btn:active {
@@ -128,12 +135,25 @@
             box-shadow: inset 2px 2px 0px rgba(255,255,255,0.2);
         }
 
+        .btn:disabled {
+            color: #aaa;
+            border-color: #aaa;
+            box-shadow: none;
+            cursor: default;
+        }
+
         .control-group {
             display: flex;
             gap: 5px;
             align-items: center;
             border: 1px solid var(--sys-black);
             padding: 3px;
+        }
+
+        .control-group-title {
+            font-size: 0.8rem;
+            margin-right: 5px;
+            font-weight: bold;
         }
 
         /* Canvas Area */
@@ -239,6 +259,7 @@
             .btn { font-size: 0.9rem; padding: 4px 6px; }
             .film-strip { height: 45px; }
             .film-frame { min-width: 35px; width: 35px; height: 35px; }
+            .control-group { flex-wrap: wrap; justify-content: center;}
         }
 
         .hidden { display: none !important; }
@@ -255,22 +276,36 @@
     </div>
 
     <div class="content">
-        <!-- Tools -->
+        <!-- Tools Row 1 -->
         <div class="toolbar">
             <div class="control-group">
                 <button class="btn active" id="tool-pen" onclick="setTool('pen')">Pen</button>
                 <button class="btn" id="tool-eraser" onclick="setTool('eraser')">Eraser</button>
+                <button class="btn" onclick="clearFrame()">Clear</button>
             </div>
+            
             <div class="control-group">
-                <button class="btn" onclick="clearFrame()">Clear Cel</button>
-                <button class="btn" onclick="startOver()" style="font-weight:bold;">Start Over</button>
                 <select id="grid-size" class="btn" onchange="changeGridSize()">
                     <option value="8">8x8</option>
                     <option value="16">16x16</option>
                     <option value="32">32x32</option>
                 </select>
+                <button class="btn" onclick="startOver()" style="color:red; font-weight:bold;">Reset</button>
             </div>
         </div>
+
+        <!-- Tools Row 2 (Files) -->
+        <div class="toolbar" style="border-top:none; padding-top:0;">
+            <div class="control-group" style="flex-grow: 1; justify-content: center;">
+                <span class="control-group-title">FILE:</span>
+                <button class="btn" onclick="saveProject()">Save</button>
+                <button class="btn" onclick="document.getElementById('file-input').click()">Load</button>
+                <button class="btn" onclick="exportGIF()" title="Download GIF">EXPORT GIF</button>
+            </div>
+        </div>
+        
+        <!-- Hidden File Input -->
+        <input type="file" id="file-input" style="display:none" accept=".json" onchange="loadProject(event)">
 
         <!-- Main Canvas -->
         <div class="canvas-container">
@@ -349,27 +384,23 @@
     }
 
     function startOver() {
-        // Check if there is anything to lose
         if (frames.length > 1 || hasContent(frames[0])) {
             if (!confirm("Start over? This will delete your entire animation.")) return;
         }
+        forceReset();
+    }
 
-        // Stop playback if running
+    function forceReset() {
         if (isPlaying) stopAnimation();
-
-        // Reset state
         frames = [];
         currentFrameIndex = 0;
-        
-        // Clear thumbnails DOM
         filmStrip.innerHTML = '';
-
-        // Ensure grid settings match current dropdown (just in case)
+        
+        // Ensure grid settings match current dropdown
         const select = document.getElementById('grid-size');
         gridSize = parseInt(select.value);
         pixelSize = canvasSize / gridSize;
 
-        // Initialize fresh
         addNewFrame();
         render();
         updateUI();
@@ -388,19 +419,161 @@
         
         gridSize = newSize;
         pixelSize = canvasSize / gridSize;
-        
-        // Reset everything manually instead of calling startOver to avoid double confirm
-        frames = [];
-        currentFrameIndex = 0;
-        filmStrip.innerHTML = '';
-        
-        addNewFrame();
-        render();
-        updateUI();
+        forceReset();
     }
 
     function hasContent(grid) {
         return grid.some(row => row.some(cell => cell === 1));
+    }
+
+    // --- File System (Save/Load/Export) ---
+
+    function saveProject() {
+        const projectData = {
+            gridSize: gridSize,
+            fps: fps,
+            frames: frames
+        };
+        const blob = new Blob([JSON.stringify(projectData)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "pixel-anim-project.json";
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function loadProject(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                
+                // Validate Basic Structure
+                if (!data.frames || !Array.isArray(data.frames)) {
+                    alert("Invalid project file.");
+                    return;
+                }
+
+                if (isPlaying) stopAnimation();
+
+                // Apply settings
+                if (data.gridSize) {
+                    gridSize = data.gridSize;
+                    document.getElementById('grid-size').value = gridSize;
+                    pixelSize = canvasSize / gridSize;
+                }
+                if (data.fps) {
+                    fps = data.fps;
+                    document.getElementById('speed-range').value = fps;
+                }
+
+                // Load frames
+                frames = data.frames;
+                currentFrameIndex = 0;
+
+                // Rebuild UI
+                filmStrip.innerHTML = '';
+                refreshThumbnails();
+                render();
+                updateUI();
+                
+                // Clear input so same file can be selected again
+                event.target.value = '';
+
+            } catch (err) {
+                console.error(err);
+                alert("Error loading file.");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function exportGIF() {
+        if (typeof gifenc === 'undefined') {
+            alert("GIF library not loaded. Check internet connection.");
+            return;
+        }
+
+        const btn = document.querySelector('button[onclick="exportGIF()"]');
+        const originalText = btn.innerText;
+        btn.innerText = "Generating...";
+        btn.disabled = true;
+
+        setTimeout(() => {
+            try {
+                const { GIFEncoder } = gifenc;
+                const gif = new GIFEncoder();
+                
+                // We want the output to be big enough to see, so we scale it.
+                // 320x320 is the canvas size. Let's use that.
+                // Calculate scale factor
+                const scale = Math.floor(canvasSize / gridSize);
+                const width = canvasSize;
+                const height = canvasSize;
+
+                // Palette: 0=White, 1=Black
+                const palette = [
+                    [255, 255, 255],
+                    [0, 0, 0]
+                ];
+
+                frames.forEach(frame => {
+                    // Create indexed color array for this frame
+                    const data = new Uint8Array(width * height);
+                    
+                    for (let y = 0; y < gridSize; y++) {
+                        for (let x = 0; x < gridSize; x++) {
+                            const colorIndex = frame[y][x] === 1 ? 1 : 0;
+                            
+                            // Fill the scaled block
+                            // The canvasSize is 320. If gridSize is 8, scale is 40.
+                            const startY = y * scale;
+                            const startX = x * scale;
+                            
+                            for (let dy = 0; dy < scale; dy++) {
+                                for (let dx = 0; dx < scale; dx++) {
+                                    const py = startY + dy;
+                                    const px = startX + dx;
+                                    if (py < height && px < width) {
+                                        data[py * width + px] = colorIndex;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    gif.writeFrame(data, width, height, {
+                        palette: palette,
+                        delay: 1000 / fps, // FPS from slider
+                        repeat: 0, // Loop forever
+                        transparent: false
+                    });
+                });
+
+                gif.finish();
+                const buffer = gif.bytes();
+                
+                // Trigger Download
+                const blob = new Blob([buffer], { type: 'image/gif' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'pixel-animation.gif';
+                a.click();
+                URL.revokeObjectURL(url);
+                
+            } catch (e) {
+                console.error(e);
+                alert("Error generating GIF.");
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }, 50); // Small timeout to allow UI to update
     }
 
     // --- Frame Management ---
@@ -415,7 +588,6 @@
         }
         frames.push(newGrid);
         currentFrameIndex = frames.length - 1;
-        // Optimization: instead of full refresh, just append one
         addThumbnail(currentFrameIndex);
         scrollToEnd();
     }
@@ -423,21 +595,14 @@
     function duplicateFrame() {
         if (frames.length === 0) return;
 
-        // Deep copy the current frame
         const newGrid = JSON.parse(JSON.stringify(frames[currentFrameIndex]));
-        
-        // Insert it into the array immediately after the current index
         frames.splice(currentFrameIndex + 1, 0, newGrid);
-        
-        // Move selection to the new duplicate
         currentFrameIndex++;
         
-        // We need to refresh all thumbnails because the indices of subsequent frames have shifted
         refreshThumbnails();
         render();
         updateUI();
         
-        // Scroll to make sure the new frame is visible
         setTimeout(() => {
             const thumb = filmStrip.children[currentFrameIndex];
             if (thumb) thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -445,13 +610,9 @@
     }
 
     function saveCelAndNext() {
-        // If we are editing a frame in the middle, just move to next if it exists, otherwise create new
         if (currentFrameIndex < frames.length - 1) {
             currentFrameIndex++;
         } else {
-            // Create a completely new empty frame
-            // The user requested: "pixels turn grey... user can select cels for NEXT frame"
-            // This implies a blank slate with onion skin.
             addNewFrame(false);
         }
         render();
@@ -466,16 +627,9 @@
         
         if (confirm("Delete this frame?")) {
             frames.splice(currentFrameIndex, 1);
-            // Remove thumbnail
-            const thumb = filmStrip.children[currentFrameIndex];
-            if(thumb) filmStrip.removeChild(thumb);
-            
-            // Adjust index
             if (currentFrameIndex >= frames.length) {
                 currentFrameIndex = frames.length - 1;
             }
-            
-            // Re-render all thumbnails because indices shifted
             refreshThumbnails();
             render();
             updateUI();
@@ -498,7 +652,7 @@
     // --- Drawing Engine ---
 
     function drawGridLines() {
-        ctx.strokeStyle = '#e0e0e0'; // Very faint grid lines
+        ctx.strokeStyle = '#e0e0e0';
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (let i = 0; i <= gridSize; i++) {
@@ -512,41 +666,33 @@
 
     function drawPixel(x, y, color) {
         ctx.fillStyle = color;
-        // Draw slightly smaller than grid for aesthetic separation
         const gap = 0; 
         ctx.fillRect(x * pixelSize + gap, y * pixelSize + gap, pixelSize - gap*2, pixelSize - gap*2);
     }
 
     function render() {
-        // Clear Canvas
         ctx.clearRect(0, 0, canvasSize, canvasSize);
-        
-        // 1. Draw Grid Lines
         drawGridLines();
 
-        // 2. Onion Skin (Previous Frame)
-        // Only show onion skin if not playing and not on first frame
         if (!isPlaying && showOnionSkin && currentFrameIndex > 0) {
             const prevFrame = frames[currentFrameIndex - 1];
             for (let y = 0; y < gridSize; y++) {
                 for (let x = 0; x < gridSize; x++) {
                     if (prevFrame[y][x] === 1) {
-                        drawPixel(x, y, '#ccc'); // Grey for onion skin
+                        drawPixel(x, y, '#ccc');
                     }
                 }
             }
         }
 
-        // 3. Current Frame
         const currentGrid = frames[currentFrameIndex];
         for (let y = 0; y < gridSize; y++) {
             for (let x = 0; x < gridSize; x++) {
                 if (currentGrid[y][x] === 1) {
-                    drawPixel(x, y, '#000'); // Black for active pixels
+                    drawPixel(x, y, '#000');
                 }
             }
         }
-
         updateThumbnail(currentFrameIndex);
     }
 
@@ -554,58 +700,32 @@
 
     function getGridCoords(e) {
         const rect = canvas.getBoundingClientRect();
-        // Handle both mouse and touch events
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        
         const x = Math.floor((clientX - rect.left) / (rect.width / gridSize));
         const y = Math.floor((clientY - rect.top) / (rect.height / gridSize));
         return { x, y };
     }
 
     function handlePaint(e) {
-        if (isPlaying) return; // Can't draw while playing
-        
+        if (isPlaying) return;
         const { x, y } = getGridCoords(e);
-        
-        // Bounds check
         if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
             const val = tool === 'pen' ? 1 : 0;
-            // Only update if changed
             if (frames[currentFrameIndex][y][x] !== val) {
                 frames[currentFrameIndex][y][x] = val;
                 render();
             }
         }
-        e.preventDefault(); // Prevent scrolling on touch
+        e.preventDefault();
     }
 
-    canvas.addEventListener('mousedown', (e) => {
-        isDrawing = true;
-        handlePaint(e);
-    });
-    
-    canvas.addEventListener('mousemove', (e) => {
-        if (isDrawing) handlePaint(e);
-    });
-
-    window.addEventListener('mouseup', () => {
-        isDrawing = false;
-    });
-
-    // Touch support
-    canvas.addEventListener('touchstart', (e) => {
-        isDrawing = true;
-        handlePaint(e);
-    }, {passive: false});
-
-    canvas.addEventListener('touchmove', (e) => {
-        if (isDrawing) handlePaint(e);
-    }, {passive: false});
-
-    canvas.addEventListener('touchend', () => {
-        isDrawing = false;
-    });
+    canvas.addEventListener('mousedown', (e) => { isDrawing = true; handlePaint(e); });
+    canvas.addEventListener('mousemove', (e) => { if (isDrawing) handlePaint(e); });
+    window.addEventListener('mouseup', () => { isDrawing = false; });
+    canvas.addEventListener('touchstart', (e) => { isDrawing = true; handlePaint(e); }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { if (isDrawing) handlePaint(e); }, {passive: false});
+    canvas.addEventListener('touchend', () => { isDrawing = false; });
 
     // --- Toolbar ---
 
@@ -637,22 +757,15 @@
 
     function updateThumbnail(index) {
         if (index < 0 || index >= filmStrip.children.length) return;
-        
         const thumb = filmStrip.children[index];
         const thumbCanvas = thumb.querySelector('canvas');
         const tCtx = thumbCanvas.getContext('2d');
         const grid = frames[index];
-        
-        // Clear transparent
         tCtx.clearRect(0, 0, gridSize, gridSize);
-        
-        // Draw miniature
         tCtx.fillStyle = '#000';
         for (let y = 0; y < gridSize; y++) {
             for (let x = 0; x < gridSize; x++) {
-                if (grid[y][x] === 1) {
-                    tCtx.fillRect(x, y, 1, 1);
-                }
+                if (grid[y][x] === 1) tCtx.fillRect(x, y, 1, 1);
             }
         }
     }
@@ -660,20 +773,15 @@
     function refreshThumbnails() {
         filmStrip.innerHTML = '';
         frames.forEach((_, idx) => addThumbnail(idx));
-        // Update content of all
         frames.forEach((_, idx) => updateThumbnail(idx));
     }
 
     function updateUI() {
         frameIndicator.innerText = `${currentFrameIndex + 1}/${frames.length}`;
-        
-        // Highlight active thumbnail
         Array.from(filmStrip.children).forEach((child, idx) => {
             if (idx === currentFrameIndex) child.classList.add('selected');
             else child.classList.remove('selected');
         });
-
-        // Change Save Button text based on context
         const saveBtn = document.getElementById('save-cel-btn');
         if (currentFrameIndex === frames.length - 1) {
             saveBtn.innerText = "+ Save Cel";
@@ -683,34 +791,26 @@
     }
 
     function scrollToEnd() {
-        setTimeout(() => {
-            filmStrip.scrollLeft = filmStrip.scrollWidth;
-        }, 50);
+        setTimeout(() => { filmStrip.scrollLeft = filmStrip.scrollWidth; }, 50);
     }
 
     // --- Playback ---
 
     function togglePlay() {
-        if (isPlaying) {
-            stopAnimation();
-        } else {
-            startAnimation();
-        }
+        if (isPlaying) stopAnimation();
+        else startAnimation();
     }
 
     function startAnimation() {
         if (frames.length < 1) return;
         isPlaying = true;
-        playBtn.innerHTML = '&#9632; STOP'; // Square stop symbol
+        playBtn.innerHTML = '&#9632; STOP';
         document.getElementById('save-cel-btn').disabled = true;
-        
-        // Disable editing inputs
         canvas.style.cursor = 'default';
 
         playInterval = setInterval(() => {
             currentFrameIndex = (currentFrameIndex + 1) % frames.length;
             render();
-            // Update UI selection for visual tracking
             updateUI(); 
         }, 1000 / fps);
     }
@@ -721,7 +821,7 @@
         playBtn.innerHTML = '&#9658; PLAY';
         document.getElementById('save-cel-btn').disabled = false;
         canvas.style.cursor = 'crosshair';
-        render(); // Re-render to show onion skin if applicable
+        render();
     }
 
     function updateSpeed() {
