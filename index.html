@@ -36,13 +36,14 @@
                               linear-gradient(-45deg, transparent 75%, #ccc 75%);
             background-size: 4px 4px;
             margin: 0;
-            padding: 20px;
+            padding: 0; /* Remove padding to maximize space on mobile */
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            height: 100vh; /* Fixed height to prevent body scroll */
+            overflow: hidden; /* No scrolling on body */
+            overscroll-behavior: none; /* Prevent rubber banding on iOS */
             color: var(--sys-black);
-            overflow-x: hidden;
             user-select: none;
             -webkit-user-select: none;
         }
@@ -56,6 +57,19 @@
             max-width: 500px;
             display: flex;
             flex-direction: column;
+            /* Layout logic for fitting screen */
+            height: 100%; 
+            max-height: 100%; 
+        }
+
+        @media (min-width: 520px) {
+             /* On desktop/tablet, give it some breathing room and borders */
+            body { padding: 20px; }
+            .window { 
+                height: auto; 
+                max-height: 95vh; /* Ensure it fits vertically */
+                border: 2px solid var(--sys-black);
+            }
         }
 
         /* Title Bar */
@@ -69,6 +83,7 @@
             border-bottom: 2px solid var(--sys-black);
             font-size: 1.2rem;
             letter-spacing: 1px;
+            flex-shrink: 0; /* Prevent shrinking */
         }
         
         .title-lines {
@@ -97,7 +112,10 @@
             padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 5px; /* Reduced gap */
+            flex: 1; /* Fill available space */
+            min-height: 0; /* Allow shrinking */
+            overflow-y: auto; /* Internal scroll only if absolutely necessary */
         }
 
         /* Toolbar */
@@ -106,8 +124,9 @@
             gap: 5px;
             flex-wrap: wrap;
             justify-content: center;
-            padding-bottom: 10px;
+            padding-bottom: 5px;
             border-bottom: 1px dashed var(--sys-black);
+            flex-shrink: 0; /* Prevent shrinking */
         }
 
         .btn {
@@ -166,9 +185,11 @@
             justify-content: center;
             align-items: center;
             background: #e0e0e0;
-            padding: 10px;
+            padding: 5px;
             border: 1px inset var(--sys-black);
             position: relative;
+            flex: 1; /* Grow/Shrink to fill space */
+            min-height: 0; /* Allow shrinking past content size */
         }
 
         canvas {
@@ -177,6 +198,16 @@
             cursor: crosshair;
             image-rendering: pixelated;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            
+            /* Responsive resizing magic */
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 1 / 1; 
+            
+            /* CRITICAL: Prevents scrolling while drawing on touch devices */
+            touch-action: none; 
         }
 
         /* Film Strip (Timeline) */
@@ -185,16 +216,17 @@
             gap: 5px;
             overflow-x: auto;
             padding: 5px 0;
-            height: 60px;
+            height: 50px; /* Slightly smaller */
             border-top: 2px solid var(--sys-black);
             background: #ddd;
             scrollbar-width: thin;
+            flex-shrink: 0;
         }
         
         .film-frame {
-            min-width: 50px;
-            width: 50px;
-            height: 50px;
+            min-width: 40px;
+            width: 40px;
+            height: 40px;
             background: var(--sys-white);
             border: 2px solid var(--sys-black);
             position: relative;
@@ -213,6 +245,7 @@
             border: none;
             box-shadow: none;
             pointer-events: none;
+            touch-action: auto; /* Allow scrolling on the film strip */
         }
 
         .frame-number {
@@ -231,6 +264,7 @@
             justify-content: space-between;
             align-items: center;
             margin-top: 5px;
+            flex-shrink: 0;
         }
         
         label {
@@ -240,7 +274,7 @@
         input[type="range"] {
             -webkit-appearance: none;
             background: transparent;
-            width: 100px;
+            width: 80px; /* Slightly smaller width */
         }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -258,11 +292,8 @@
 
         /* Responsive */
         @media (max-width: 500px) {
-            body { padding: 5px; }
-            .window { border-width: 2px; }
+            .window { border-width: 0; } /* Remove border on mobile */
             .btn { font-size: 0.9rem; padding: 4px 6px; }
-            .film-strip { height: 45px; }
-            .film-frame { min-width: 35px; width: 35px; height: 35px; }
             .control-group { flex-wrap: wrap; justify-content: center;}
         }
 
@@ -317,7 +348,7 @@
         </div>
 
         <!-- Animation Controls -->
-        <div class="toolbar" style="border-bottom: none; border-top: 1px dashed var(--sys-black); padding-top: 10px;">
+        <div class="toolbar" style="border-bottom: none; border-top: 1px dashed var(--sys-black); padding-top: 5px; padding-bottom: 0;">
             <button class="btn" id="save-cel-btn" onclick="saveCelAndNext()" style="flex-grow: 2; font-weight: bold;">+ Save Cel</button>
             <button class="btn" onclick="duplicateFrame()" title="Duplicate Current Frame" style="flex-grow: 1;">Dup</button>
             <button class="btn" onclick="deleteFrame()" style="color:red; font-weight:bold;">X</button>
@@ -345,7 +376,8 @@
 <script>
     // --- Configuration ---
     let gridSize = 8;
-    const canvasSize = 320; // Display size in pixels
+    // Note: Internal resolution stays 320 for quality, but CSS scales it
+    const canvasSize = 320; 
     let pixelSize = canvasSize / gridSize;
     
     // --- State ---
@@ -432,6 +464,15 @@
 
     // --- File System (Save/Load/Export) ---
 
+    function getTimestampFilename(extension) {
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const hour = String(now.getHours()).padStart(2, '0');
+        const minute = String(now.getMinutes()).padStart(2, '0');
+        return `pixart${day}${month}${hour}${minute}.${extension}`;
+    }
+
     function saveProject() {
         const projectData = {
             gridSize: gridSize,
@@ -442,7 +483,7 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = "pixel-anim-project.json";
+        a.download = getTimestampFilename('json');
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -553,36 +594,36 @@
                     }
 
                     gif.writeFrame(data, width, height, {
-                        palette: palette,
-                        delay: 1000 / fps, // FPS from slider
-                        repeat: 0, // Loop forever
-                        transparent: false
-                    });
+                    palette: palette,
+                    delay: 1000 / fps, // FPS from slider
+                    repeat: 0, // Loop forever
+                    transparent: false
                 });
+            });
 
-                gif.finish();
-                const buffer = gif.bytes();
-                
-                // Trigger Download
-                const blob = new Blob([buffer], { type: 'image/gif' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'pixel-animation.gif';
-                a.click();
-                URL.revokeObjectURL(url);
-                
-            } catch (e) {
-                console.error(e);
-                alert("Error generating GIF: " + e.message);
-            } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
-        }, 50); // Small timeout to allow UI to update
-    }
+            gif.finish();
+            const buffer = gif.bytes();
+            
+            // Trigger Download
+            const blob = new Blob([buffer], { type: 'image/gif' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = getTimestampFilename('gif');
+            a.click();
+            URL.revokeObjectURL(url);
+            
+        } catch (e) {
+            console.error(e);
+            alert("Error generating GIF: " + e.message);
+        } finally {
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    }, 50); // Small timeout to allow UI to update
+}
 
-    // --- Frame Management ---
+// --- Frame Management ---
 
     function addNewFrame(copyPrevious = false) {
         let newGrid;
@@ -708,6 +749,8 @@
         const rect = canvas.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // Use rect.width and rect.height because they reflect the actual screen size (CSS scale)
         const x = Math.floor((clientX - rect.left) / (rect.width / gridSize));
         const y = Math.floor((clientY - rect.top) / (rect.height / gridSize));
         return { x, y };
@@ -723,7 +766,8 @@
                 render();
             }
         }
-        e.preventDefault();
+        // Critical for touch devices: stop the browser from scrolling
+        if (e.cancelable) e.preventDefault();
     }
 
     canvas.addEventListener('mousedown', (e) => { isDrawing = true; handlePaint(e); });
