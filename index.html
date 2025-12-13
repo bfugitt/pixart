@@ -36,16 +36,15 @@
                               linear-gradient(-45deg, transparent 75%, #ccc 75%);
             background-size: 4px 4px;
             margin: 0;
-            padding: 0; /* Remove padding to maximize space on mobile */
+            padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100vh; /* Fixed height to prevent body scroll */
-            overflow: hidden; /* No scrolling on body */
-            overscroll-behavior: none; /* Prevent rubber banding on iOS */
+            align-items: flex-start; /* Changed from center to allow scrolling */
+            min-height: 100vh;
             color: var(--sys-black);
             user-select: none;
             -webkit-user-select: none;
+            /* Reverted overflow/height locks to allow scrolling */
         }
 
         /* The Main Window */
@@ -57,19 +56,7 @@
             max-width: 500px;
             display: flex;
             flex-direction: column;
-            /* Layout logic for fitting screen */
-            height: 100%; 
-            max-height: 100%; 
-        }
-
-        @media (min-width: 520px) {
-             /* On desktop/tablet, give it some breathing room and borders */
-            body { padding: 20px; }
-            .window { 
-                height: auto; 
-                max-height: 95vh; /* Ensure it fits vertically */
-                border: 2px solid var(--sys-black);
-            }
+            margin-bottom: 20px; /* Space at bottom for scrolling */
         }
 
         /* Title Bar */
@@ -83,7 +70,6 @@
             border-bottom: 2px solid var(--sys-black);
             font-size: 1.2rem;
             letter-spacing: 1px;
-            flex-shrink: 0; /* Prevent shrinking */
         }
         
         .title-lines {
@@ -112,10 +98,7 @@
             padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 5px; /* Reduced gap */
-            flex: 1; /* Fill available space */
-            min-height: 0; /* Allow shrinking */
-            overflow-y: auto; /* Internal scroll only if absolutely necessary */
+            gap: 10px;
         }
 
         /* Toolbar */
@@ -124,9 +107,8 @@
             gap: 5px;
             flex-wrap: wrap;
             justify-content: center;
-            padding-bottom: 5px;
+            padding-bottom: 10px;
             border-bottom: 1px dashed var(--sys-black);
-            flex-shrink: 0; /* Prevent shrinking */
         }
 
         .btn {
@@ -171,6 +153,8 @@
             align-items: center;
             border: 1px solid var(--sys-black);
             padding: 3px;
+            flex-wrap: wrap; /* Allow buttons to wrap on very small screens */
+            justify-content: center;
         }
 
         .control-group-title {
@@ -185,11 +169,9 @@
             justify-content: center;
             align-items: center;
             background: #e0e0e0;
-            padding: 5px;
+            padding: 10px;
             border: 1px inset var(--sys-black);
             position: relative;
-            flex: 1; /* Grow/Shrink to fill space */
-            min-height: 0; /* Allow shrinking past content size */
         }
 
         canvas {
@@ -199,14 +181,13 @@
             image-rendering: pixelated;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
             
-            /* Responsive resizing magic */
-            width: auto;
+            /* Responsive resizing */
+            width: 100%;
             height: auto;
-            max-width: 100%;
-            max-height: 100%;
+            max-width: 320px; /* Limit max size */
             aspect-ratio: 1 / 1; 
-            
-            /* CRITICAL: Prevents scrolling while drawing on touch devices */
+
+            /* CRITICAL: Prevents scrolling ONLY when touching the canvas */
             touch-action: none; 
         }
 
@@ -216,22 +197,22 @@
             gap: 5px;
             overflow-x: auto;
             padding: 5px 0;
-            height: 50px; /* Slightly smaller */
+            height: 60px;
             border-top: 2px solid var(--sys-black);
             background: #ddd;
             scrollbar-width: thin;
-            flex-shrink: 0;
         }
         
         .film-frame {
-            min-width: 40px;
-            width: 40px;
-            height: 40px;
+            min-width: 50px;
+            width: 50px;
+            height: 50px;
             background: var(--sys-white);
             border: 2px solid var(--sys-black);
             position: relative;
             cursor: pointer;
             image-rendering: pixelated;
+            flex-shrink: 0;
         }
 
         .film-frame.selected {
@@ -245,7 +226,7 @@
             border: none;
             box-shadow: none;
             pointer-events: none;
-            touch-action: auto; /* Allow scrolling on the film strip */
+            touch-action: auto; /* Timeline doesn't need to block scroll */
         }
 
         .frame-number {
@@ -264,7 +245,6 @@
             justify-content: space-between;
             align-items: center;
             margin-top: 5px;
-            flex-shrink: 0;
         }
         
         label {
@@ -274,7 +254,7 @@
         input[type="range"] {
             -webkit-appearance: none;
             background: transparent;
-            width: 80px; /* Slightly smaller width */
+            width: 100px;
         }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -292,8 +272,11 @@
 
         /* Responsive */
         @media (max-width: 500px) {
-            .window { border-width: 0; } /* Remove border on mobile */
+            body { padding: 5px; }
+            .window { border-width: 2px; }
             .btn { font-size: 0.9rem; padding: 4px 6px; }
+            .film-strip { height: 45px; }
+            .film-frame { min-width: 35px; width: 35px; height: 35px; }
             .control-group { flex-wrap: wrap; justify-content: center;}
         }
 
@@ -348,7 +331,7 @@
         </div>
 
         <!-- Animation Controls -->
-        <div class="toolbar" style="border-bottom: none; border-top: 1px dashed var(--sys-black); padding-top: 5px; padding-bottom: 0;">
+        <div class="toolbar" style="border-bottom: none; border-top: 1px dashed var(--sys-black); padding-top: 10px;">
             <button class="btn" id="save-cel-btn" onclick="saveCelAndNext()" style="flex-grow: 2; font-weight: bold;">+ Save Cel</button>
             <button class="btn" onclick="duplicateFrame()" title="Duplicate Current Frame" style="flex-grow: 1;">Dup</button>
             <button class="btn" onclick="deleteFrame()" style="color:red; font-weight:bold;">X</button>
