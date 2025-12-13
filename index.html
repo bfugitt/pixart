@@ -9,8 +9,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
     
-    <!-- GIF Encoder Library -->
-    <script src="https://unpkg.com/gifenc@1.0.3/dist/gifenc.js"></script>
+    <!-- GIF Encoder Library (ES Module Version) -->
+    <script type="module">
+        import { GIFEncoder } from 'https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js';
+        // Attach to window so the rest of the app can see it
+        window.gifenc = { GIFEncoder };
+    </script>
 
     <style>
         /* --- System 6 Theme Styles --- */
@@ -493,8 +497,9 @@
     }
 
     function exportGIF() {
-        if (typeof gifenc === 'undefined') {
-            alert("GIF library not loaded. Check internet connection.");
+        // Robust Library Check
+        if (!window.gifenc) {
+            alert("The GIF library hasn't loaded yet. Please check your internet connection or wait a few seconds.");
             return;
         }
 
@@ -505,7 +510,8 @@
 
         setTimeout(() => {
             try {
-                const { GIFEncoder } = gifenc;
+                // Get GIFEncoder from the global object we created
+                const { GIFEncoder } = window.gifenc;
                 const gif = new GIFEncoder();
                 
                 // We want the output to be big enough to see, so we scale it.
@@ -568,7 +574,7 @@
                 
             } catch (e) {
                 console.error(e);
-                alert("Error generating GIF.");
+                alert("Error generating GIF: " + e.message);
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
